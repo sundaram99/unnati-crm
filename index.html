@@ -421,6 +421,9 @@
     <li><a href="#india">For India</a></li>
     <li><a href="#cta" class="nav-cta">Get Early Access</a></li>
     <li><a href="#" id="navLoginBtn" style="color:var(--teal);font-weight:700">Login</a></li>
+    <li id="navLogoutItem" style="display:none">
+      <button id="navLogoutBtn" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.88rem;font-weight:600;padding:0;transition:color .2s">Logout</button>
+    </li>
   </ul>
 </nav>
 
@@ -980,12 +983,20 @@ const tabs        = document.querySelectorAll('.modal-tab');
 
 let authMode = 'signin';
 
-/* If already logged in, swap Login → Dashboard */
+/* If already logged in, swap Login → Dashboard + show Logout */
 sb.auth.getSession().then(({ data: { session } }) => {
   if (session) {
     navLoginBtn.textContent = 'Dashboard';
-    navLoginBtn.href = '/dashboard.html';
+    navLoginBtn.href = '/unnati-crm/dashboard.html';
+    document.getElementById('navLogoutItem').style.display = '';
   }
+});
+
+document.getElementById('navLogoutBtn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  navLoginBtn.textContent = 'Login';
+  navLoginBtn.href = '#';
+  document.getElementById('navLogoutItem').style.display = 'none';
 });
 
 function openModal() { authModal.classList.add('open'); authEmail.focus(); }
@@ -1034,14 +1045,17 @@ authSubmit.addEventListener('click', async () => {
       const { error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw error;
       showMsg('Signed in! Redirecting…', 'ok');
-      setTimeout(() => { window.location.href = '/dashboard.html'; }, 800);
+      document.getElementById('navLogoutItem').style.display = '';
+      navLoginBtn.textContent = 'Dashboard';
+      navLoginBtn.href = '/unnati-crm/dashboard.html';
+      setTimeout(() => { window.location.href = '/unnati-crm/dashboard.html'; }, 800);
     } else {
       const { data, error } = await sb.auth.signUp({ email, password });
       if (error) throw error;
       if (data.session) {
         /* Email confirmation disabled — logged in immediately */
         showMsg('Account created! Redirecting…', 'ok');
-        setTimeout(() => { window.location.href = '/dashboard.html'; }, 800);
+        setTimeout(() => { window.location.href = '/unnati-crm/dashboard.html'; }, 800);
       } else {
         /* Email confirmation required — ask them to verify then sign in */
         showMsg('Check your inbox to confirm your email, then sign in here.', 'ok');

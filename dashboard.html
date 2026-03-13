@@ -244,24 +244,21 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const HEAT_COLORS = { Hot: 'green', Warm: 'yellow', Cold: 'blue' };
 
-async function loadCrmData(userId) {
+async function loadCrmData() {
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
   /* Run all queries in parallel */
   const [activeRes, followupRes, recentRes] = await Promise.all([
     sb.from('contacts')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
       .not('stage', 'in', '("Won","Lost")'),
 
     sb.from('contacts')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
       .lt('last_updated', sevenDaysAgo),
 
     sb.from('contacts')
       .select('name, stage, heat_score, last_updated')
-      .eq('user_id', userId)
       .order('last_updated', { ascending: false })
       .limit(5),
   ]);
@@ -326,7 +323,7 @@ async function init() {
   const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   document.getElementById('firstName').textContent = name;
 
-  loadCrmData(session.user.id).catch(err => {
+  loadCrmData().catch(err => {
     console.error('CRM fetch error:', err);
     document.getElementById('pipelineBadge').textContent = 'ERROR';
     document.getElementById('dealsBadge').textContent    = 'ERROR';
