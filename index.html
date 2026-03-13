@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Unnati CRM — Your Deal Pipeline Lives in Telegram</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -293,6 +294,9 @@
     #cta-ok {
       margin-top:16px; font-size:.85rem; color:var(--teal); display:none;
     }
+    #cta-err {
+      margin-top:16px; font-size:.85rem; color:#ff6b6b; display:none;
+    }
 
     /* ── Footer ── */
     footer {
@@ -343,6 +347,63 @@
       .cta-box { padding:48px 22px; }
       .scroll-hint { display:none; }
     }
+
+    /* ── Auth Modal ── */
+    .modal-overlay {
+      position:fixed; inset:0; z-index:1000;
+      background:rgba(0,0,0,.72); backdrop-filter:blur(6px);
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; pointer-events:none; transition:opacity .25s;
+    }
+    .modal-overlay.open { opacity:1; pointer-events:all; }
+    .modal {
+      background:var(--card); border:1px solid var(--border);
+      border-radius:20px; padding:36px 40px; width:100%; max-width:420px;
+      position:relative; transform:translateY(18px) scale(.97);
+      transition:transform .25s;
+    }
+    .modal-overlay.open .modal { transform:none; }
+    .modal-close {
+      position:absolute; top:16px; right:18px;
+      background:none; border:none; color:var(--muted);
+      font-size:1.3rem; cursor:pointer; line-height:1;
+      transition:color .2s;
+    }
+    .modal-close:hover { color:var(--text); }
+    .modal h2 { font-size:1.45rem; font-weight:800; margin-bottom:6px; }
+    .modal-sub { color:var(--muted); font-size:.875rem; margin-bottom:26px; }
+    .modal-tabs {
+      display:flex; gap:0; margin-bottom:26px;
+      background:var(--bg); border-radius:10px; padding:4px;
+    }
+    .modal-tab {
+      flex:1; padding:9px; border:none; background:none;
+      color:var(--muted); font-size:.875rem; font-weight:600;
+      border-radius:8px; cursor:pointer; transition:all .2s;
+    }
+    .modal-tab.active { background:var(--teal); color:#000; }
+    .modal label { display:block; font-size:.8rem; color:var(--muted); margin-bottom:6px; }
+    .modal-field { margin-bottom:16px; }
+    .modal input[type="email"],
+    .modal input[type="password"] {
+      width:100%; background:var(--bg); border:1px solid rgba(255,255,255,.1);
+      border-radius:10px; padding:11px 14px; color:var(--text);
+      font-size:.9rem; outline:none; transition:border-color .2s;
+    }
+    .modal input:focus { border-color:var(--teal); }
+    .modal-submit {
+      width:100%; padding:13px; background:var(--teal); color:#000;
+      font-weight:700; font-size:.95rem; border:none; border-radius:10px;
+      cursor:pointer; transition:all .2s; margin-top:4px;
+    }
+    .modal-submit:hover { background:#00efbf; }
+    .modal-submit:disabled { opacity:.5; cursor:default; }
+    .modal-msg {
+      margin-top:14px; font-size:.845rem; text-align:center;
+      display:none; line-height:1.5;
+    }
+    .modal-msg.ok  { color:var(--teal); display:block; }
+    .modal-msg.err { color:#ff6b6b; display:block; }
   </style>
 </head>
 <body>
@@ -359,8 +420,32 @@
     <li><a href="#feat">Features</a></li>
     <li><a href="#india">For India</a></li>
     <li><a href="#cta" class="nav-cta">Get Early Access</a></li>
+    <li><a href="#" id="navLoginBtn" style="color:var(--teal);font-weight:700">Login</a></li>
   </ul>
 </nav>
+
+<!-- AUTH MODAL -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    <h2>Welcome back</h2>
+    <p class="modal-sub">Sign in or create your founder account.</p>
+    <div class="modal-tabs">
+      <button class="modal-tab active" data-tab="signin">Sign In</button>
+      <button class="modal-tab" data-tab="signup">Sign Up</button>
+    </div>
+    <div class="modal-field">
+      <label for="authEmail">Email</label>
+      <input type="email" id="authEmail" placeholder="you@startup.com" autocomplete="email" />
+    </div>
+    <div class="modal-field">
+      <label for="authPassword">Password</label>
+      <input type="password" id="authPassword" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="modal-submit" id="authSubmit">Sign In</button>
+    <p class="modal-msg" id="authMsg"></p>
+  </div>
+</div>
 
 <!-- HERO -->
 <section class="hero">
@@ -547,6 +632,7 @@
         <button class="btn btn-p" id="ctaBtn">Join Waitlist</button>
       </div>
       <p id="cta-ok">🎉 You're on the list! We'll ping you on Telegram soon.</p>
+      <p id="cta-err"></p>
     </div>
   </div>
 </section>
@@ -782,19 +868,196 @@ btn.addEventListener('click', sendMsg);
 inp.addEventListener('keydown', e=>{ if(e.key==='Enter') sendMsg(); });
 
 /* ═══════════════════════════════════════════
+   SUPABASE CONFIG
+═══════════════════════════════════════════ */
+const SUPABASE_URL = 'https://bvgjwcjnhubhwzlxcenq.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z2p3Y2puaHViaHd6bHhjZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQ5ODMsImV4cCI6MjA4ODg5MDk4M30._5xKW2Bt2O2e2WVF7n5T-Pr8SPk3BTmCMHGKbo2gpGg';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const sbHeaders = {
+  'Content-Type': 'application/json',
+  'apikey': SUPABASE_KEY,
+  'Authorization': `Bearer ${SUPABASE_KEY}`,
+};
+
+/* Fetch real waitlist count and update the counter */
+async function loadWaitlistCount() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist?select=*`, {
+      headers: { ...sbHeaders, 'Prefer': 'count=exact', 'Range': '0-0' },
+    });
+    const count = parseInt(res.headers.get('content-range')?.split('/')[1] || '0', 10);
+    if (count > 0) {
+      const el = document.querySelector('.s-num[data-t="2400"]');
+      if (el) {
+        el.dataset.t = count;
+        /* If counter already animated, update directly */
+        if (el.textContent !== '0') {
+          el.textContent = count >= 1000 ? count.toLocaleString('en-IN') : count;
+        }
+      }
+      /* Also update the CTA paragraph */
+      const ctaPara = document.querySelector('.cta-box > p');
+      if (ctaPara) {
+        ctaPara.innerHTML = `Join ${count >= 1000 ? count.toLocaleString('en-IN') : count}+ Indian founders already on the waitlist.<br>Be the first to close more deals from Telegram.`;
+      }
+    }
+  } catch(_) {}
+}
+loadWaitlistCount();
+
+/* ═══════════════════════════════════════════
    CTA FORM
 ═══════════════════════════════════════════ */
-document.getElementById('ctaBtn').addEventListener('click',()=>{
-  const email=document.getElementById('ctaEmail');
-  if(!email.value.trim() || !email.value.includes('@')){
-    email.style.borderColor='#ff4455'; return;
+document.getElementById('ctaBtn').addEventListener('click', async () => {
+  const emailEl = document.getElementById('ctaEmail');
+  const btn     = document.getElementById('ctaBtn');
+  const okEl    = document.getElementById('cta-ok');
+  const errEl   = document.getElementById('cta-err');
+  const email   = emailEl.value.trim();
+
+  okEl.style.display  = 'none';
+  errEl.style.display = 'none';
+  emailEl.style.borderColor = 'var(--border)';
+
+  if (!email || !email.includes('@')) {
+    emailEl.style.borderColor = '#ff4455';
+    return;
   }
-  document.getElementById('ctaBtn').textContent='✓ You\'re in!';
-  document.getElementById('ctaBtn').style.background='#00a882';
-  document.getElementById('cta-ok').style.display='block';
-  email.value=''; email.placeholder='You\'re on the list 🎉';
-  email.style.borderColor='var(--teal)';
+
+  btn.textContent = 'Joining…';
+  btn.disabled    = true;
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
+      method: 'POST',
+      headers: { ...sbHeaders, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ email }),
+    });
+
+    if (res.ok) {
+      btn.textContent = '✓ You\'re in!';
+      btn.style.background = '#00a882';
+      okEl.style.display = 'block';
+      emailEl.value = '';
+      emailEl.placeholder = 'You\'re on the list 🎉';
+      emailEl.style.borderColor = 'var(--teal)';
+      loadWaitlistCount();
+    } else {
+      const body = await res.json().catch(() => ({}));
+      const isDuplicate = res.status === 409 || (body.code === '23505') || (body.message && body.message.includes('duplicate'));
+      btn.textContent = 'Join Waitlist';
+      btn.disabled    = false;
+      if (isDuplicate) {
+        errEl.textContent   = 'You\'re already on the list!';
+        errEl.style.display = 'block';
+        emailEl.style.borderColor = '#ff6b6b';
+      } else {
+        errEl.textContent   = 'Something went wrong. Please try again.';
+        errEl.style.display = 'block';
+      }
+    }
+  } catch (_) {
+    btn.textContent = 'Join Waitlist';
+    btn.disabled    = false;
+    errEl.textContent   = 'Network error. Please try again.';
+    errEl.style.display = 'block';
+  }
 });
+
+/* ═══════════════════════════════════════════
+   AUTH MODAL
+═══════════════════════════════════════════ */
+const authModal   = document.getElementById('authModal');
+const modalClose  = document.getElementById('modalClose');
+const navLoginBtn = document.getElementById('navLoginBtn');
+const authSubmit  = document.getElementById('authSubmit');
+const authMsg     = document.getElementById('authMsg');
+const authEmail   = document.getElementById('authEmail');
+const authPassword= document.getElementById('authPassword');
+const tabs        = document.querySelectorAll('.modal-tab');
+
+let authMode = 'signin';
+
+/* If already logged in, swap Login → Dashboard */
+sb.auth.getSession().then(({ data: { session } }) => {
+  if (session) {
+    navLoginBtn.textContent = 'Dashboard';
+    navLoginBtn.href = '/dashboard.html';
+  }
+});
+
+function openModal() { authModal.classList.add('open'); authEmail.focus(); }
+function closeModal(){ authModal.classList.remove('open'); clearMsg(); }
+
+navLoginBtn.addEventListener('click', e => {
+  if (navLoginBtn.textContent === 'Dashboard') return; /* let href work */
+  e.preventDefault(); openModal();
+});
+modalClose.addEventListener('click', closeModal);
+authModal.addEventListener('click', e => { if (e.target === authModal) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    tabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    authMode = tab.dataset.tab;
+    authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+    clearMsg();
+  });
+});
+
+function showMsg(text, type) {
+  authMsg.textContent = text;
+  authMsg.className = 'modal-msg ' + type;
+}
+function clearMsg() {
+  authMsg.className = 'modal-msg';
+  authMsg.textContent = '';
+}
+
+authSubmit.addEventListener('click', async () => {
+  const email    = authEmail.value.trim();
+  const password = authPassword.value;
+
+  if (!email || !email.includes('@')) { showMsg('Enter a valid email.', 'err'); return; }
+  if (password.length < 6) { showMsg('Password must be at least 6 characters.', 'err'); return; }
+
+  authSubmit.disabled = true;
+  authSubmit.textContent = 'Please wait…';
+  clearMsg();
+
+  try {
+    if (authMode === 'signin') {
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      showMsg('Signed in! Redirecting…', 'ok');
+      setTimeout(() => { window.location.href = '/dashboard.html'; }, 800);
+    } else {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw error;
+      if (data.session) {
+        /* Email confirmation disabled — logged in immediately */
+        showMsg('Account created! Redirecting…', 'ok');
+        setTimeout(() => { window.location.href = '/dashboard.html'; }, 800);
+      } else {
+        /* Email confirmation required — ask them to verify then sign in */
+        showMsg('Check your inbox to confirm your email, then sign in here.', 'ok');
+        authSubmit.disabled = false;
+        authSubmit.textContent = 'Create Account';
+      }
+    }
+  } catch (err) {
+    showMsg(err.message || 'Something went wrong. Please try again.', 'err');
+    authSubmit.disabled = false;
+    authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+  }
+});
+
+/* Allow Enter key in password field */
+authPassword.addEventListener('keydown', e => { if (e.key === 'Enter') authSubmit.click(); });
 </script>
 </body>
 </html>
