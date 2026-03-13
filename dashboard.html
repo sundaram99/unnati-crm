@@ -207,10 +207,10 @@
   </div>
 
   <!-- Stats -->
-  <div class="section-title">Pipeline Overview <span class="badge">SAMPLE DATA</span></div>
+  <div class="section-title">Pipeline Overview <span class="badge" id="pipelineBadge">LOADING…</span></div>
   <div class="crm-grid">
     <div class="stat-card">
-      <div class="s-num">0</div>
+      <div class="s-num" id="statActive">—</div>
       <div class="s-label">Active Deals</div>
     </div>
     <div class="stat-card">
@@ -218,20 +218,20 @@
       <div class="s-label">Pipeline Value</div>
     </div>
     <div class="stat-card">
-      <div class="s-num">0</div>
+      <div class="s-num" id="statFollowups">—</div>
       <div class="s-label">Follow-ups Due</div>
     </div>
   </div>
 
   <!-- Deals table -->
-  <div class="section-title">Recent Deals <span class="badge">COMING SOON</span></div>
-  <div class="deals-placeholder">
+  <div class="section-title">Recent Contacts <span class="badge" id="dealsBadge">LOADING…</span></div>
+  <div class="deals-placeholder" id="dealsContainer">
     <div class="deals-header">
       <h3>Your Deal Pipeline</h3>
       <span>Synced from Telegram bot</span>
     </div>
-    <div class="empty-note">
-      <p>No deals yet. Start by opening the <b>Unnati Bot</b> on Telegram<br>and typing <b>/add deal [name] [value] [category]</b></p>
+    <div class="empty-note" id="dealsEmpty">
+      <p>No contacts yet. Start by opening the <b>Unnati Bot</b> on Telegram<br>and typing <b>/add [contact name]</b></p>
     </div>
   </div>
 
@@ -241,6 +241,77 @@
 const SUPABASE_URL = 'https://bvgjwcjnhubhwzlxcenq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z2p3Y2puaHViaHd6bHhjZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQ5ODMsImV4cCI6MjA4ODg5MDk4M30._5xKW2Bt2O2e2WVF7n5T-Pr8SPk3BTmCMHGKbo2gpGg';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const HEAT_COLORS = { Hot: 'green', Warm: 'yellow', Cold: 'blue' };
+
+async function loadCrmData(userId) {
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  /* Run all queries in parallel */
+  const [activeRes, followupRes, recentRes] = await Promise.all([
+    sb.from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .not('stage', 'in', '("Won","Lost")'),
+
+    sb.from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .lt('last_updated', sevenDaysAgo),
+
+    sb.from('contacts')
+      .select('name, stage, heat_score, last_updated')
+      .eq('user_id', userId)
+      .order('last_updated', { ascending: false })
+      .limit(5),
+  ]);
+
+  const noData = (activeRes.count === 0 && recentRes.data?.length === 0);
+
+  /* ── Stats ── */
+  document.getElementById('statActive').textContent    = activeRes.count   ?? '0';
+  document.getElementById('statFollowups').textContent = followupRes.count ?? '0';
+  document.getElementById('pipelineBadge').textContent = 'LIVE';
+
+  /* ── Recent contacts list ── */
+  const contacts = recentRes.data ?? [];
+  const empty    = document.getElementById('dealsEmpty');
+  const badge    = document.getElementById('dealsBadge');
+
+  badge.textContent = 'LIVE';
+
+  if (contacts.length === 0) {
+    empty.innerHTML = noData
+      ? `<p>No data yet. <b>Connect your Telegram bot</b> to start logging contacts.<br>
+         Once linked, your deals will appear here automatically.</p>`
+      : `<p>No contacts yet. Start by opening the <b>Unnati Bot</b> on Telegram<br>and typing <b>/add [contact name]</b></p>`;
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.remove();
+
+  const container = document.getElementById('dealsContainer');
+  contacts.forEach(c => {
+    const heat  = c.heat_score || 'Cold';
+    const dot   = HEAT_COLORS[heat] || 'muted';
+    const stage = c.stage || 'New';
+    const row   = document.createElement('div');
+    row.className = 'deal-row';
+    row.innerHTML = `
+      <span class="deal-dot ${dot}"></span>
+      <span class="deal-name">${escHtml(c.name || 'Unnamed')}</span>
+      <span class="deal-stage">${escHtml(stage)}</span>
+      <span class="deal-value" style="font-size:.75rem;color:var(--muted)">${escHtml(heat)}</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
 async function init() {
   const { data: { session } } = await sb.auth.getSession();
@@ -252,9 +323,14 @@ async function init() {
 
   const email = session.user.email;
   document.getElementById('userEmail').textContent = email;
-  /* Use first part of email as first name */
   const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   document.getElementById('firstName').textContent = name;
+
+  loadCrmData(session.user.id).catch(err => {
+    console.error('CRM fetch error:', err);
+    document.getElementById('pipelineBadge').textContent = 'ERROR';
+    document.getElementById('dealsBadge').textContent    = 'ERROR';
+  });
 }
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
