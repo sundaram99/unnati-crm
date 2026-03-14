@@ -56,6 +56,13 @@
       padding:9px 20px; border-radius:8px; font-weight:700;
     }
     .nav-cta:hover { background:#00f0c0 !important; }
+    .nav-login {
+      color:var(--teal) !important; font-weight:700;
+      border:1px solid var(--border) !important;
+      padding:7px 16px; border-radius:8px; font-size:.83rem;
+      transition:all .2s !important;
+    }
+    .nav-login:hover { background:var(--teal-glow) !important; border-color:var(--teal) !important; }
 
     /* ── Sections ── */
     section { position:relative; z-index:1; }
@@ -217,7 +224,11 @@
       content:''; position:absolute; top:0; left:0; right:0; height:2px;
       background:var(--teal); transform:scaleX(0); transition:transform .3s; transform-origin:left;
     }
-    .card:hover { border-color:var(--border); transform:translateY(-4px); box-shadow:0 20px 44px rgba(0,0,0,.3); }
+    .card:hover {
+      border-color:rgba(0,212,170,.45);
+      transform:translateY(-4px);
+      box-shadow:0 20px 44px rgba(0,0,0,.35), 0 0 0 1px rgba(0,212,170,.2), 0 0 32px rgba(0,212,170,.1);
+    }
     .card:hover::before { transform:scaleX(1); }
 
     .card-icon {
@@ -234,50 +245,58 @@
       margin-bottom:52px; opacity:.8;
     }
     .mvf-grid {
-      display:grid; grid-template-columns:1fr 1fr; gap:24px;
+      display:grid; grid-template-columns:1fr 1fr; gap:28px;
     }
     .mvf-card {
-      border-radius:18px; padding:32px 30px; position:relative; overflow:hidden;
+      border-radius:20px; padding:40px 36px 36px; position:relative; overflow:hidden;
     }
     .mvf-card.myth {
-      background:#0e1117; border:1px solid rgba(255,255,255,.08);
+      background:#0c0f18;
+      border:1px solid rgba(255,80,60,.18);
     }
     .mvf-card.fact {
-      background:linear-gradient(135deg,#071a15,#0a1f1a);
-      border:1px solid rgba(0,212,170,.25);
+      background:linear-gradient(140deg,#061812,#0b2318);
+      border:1px solid rgba(0,212,170,.3);
     }
+    /* decorative opening quote */
+    .mvf-card::before {
+      content: '\201C';
+      position:absolute; top:-8px; left:26px;
+      font-size:7rem; line-height:1; font-weight:900;
+      pointer-events:none; user-select:none;
+    }
+    .mvf-card.myth::before { color:rgba(255,80,60,.12); }
+    .mvf-card.fact::before  { color:rgba(0,212,170,.13); }
     .mvf-label {
-      font-size:.7rem; font-weight:800; letter-spacing:2px;
-      text-transform:uppercase; margin-bottom:18px;
-      display:inline-block; padding:3px 11px; border-radius:100px;
+      font-size:.68rem; font-weight:900; letter-spacing:2.5px;
+      text-transform:uppercase; margin-bottom:22px;
+      display:inline-flex; align-items:center; gap:6px;
+      padding:4px 13px; border-radius:100px;
     }
-    .mvf-card.myth .mvf-label { background:rgba(255,255,255,.06); color:var(--muted); }
-    .mvf-card.fact  .mvf-label { background:var(--teal-glow); color:var(--teal); border:1px solid var(--border); }
+    .mvf-label::before { content:''; width:7px; height:7px; border-radius:50%; display:inline-block; }
+    .mvf-card.myth .mvf-label {
+      background:rgba(255,80,60,.12); color:#ff7055;
+      border:1px solid rgba(255,80,60,.25);
+    }
+    .mvf-card.myth .mvf-label::before { background:#ff7055; }
+    .mvf-card.fact  .mvf-label {
+      background:var(--teal-glow); color:var(--teal);
+      border:1px solid var(--border);
+    }
+    .mvf-card.fact  .mvf-label::before { background:var(--teal); }
     .mvf-card p {
-      font-size:1.08rem; line-height:1.6; font-weight:500;
+      font-size:1.18rem; line-height:1.65; font-weight:500;
+      position:relative; z-index:1;
     }
-    .mvf-card.myth p { color:#6b7a8f; }
+    .mvf-card.myth p { color:#8b95a8; }
     .mvf-card.fact  p { color:var(--text); }
+    /* teal ambient glow on fact card */
     .mvf-card.fact::after {
-      content:''; position:absolute; bottom:-30px; right:-20px;
-      width:120px; height:120px;
-      background:radial-gradient(circle,rgba(0,212,170,.12),transparent 70%);
+      content:''; position:absolute; bottom:-40px; right:-30px;
+      width:180px; height:180px;
+      background:radial-gradient(circle,rgba(0,212,170,.15),transparent 65%);
       pointer-events:none;
     }
-
-    /* ── Stats ── */
-    .stats {
-      padding:80px 0;
-      background:var(--bg2);
-      border-top:1px solid rgba(255,255,255,.04);
-      border-bottom:1px solid rgba(255,255,255,.04);
-    }
-    .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:40px; text-align:center; }
-    .s-num {
-      font-size:2.9rem; font-weight:800; color:var(--teal);
-      letter-spacing:-1px; line-height:1; margin-bottom:8px;
-    }
-    .s-label { color:var(--muted); font-size:.855rem; }
 
     /* ── CTA ── */
     .cta-sec { padding:120px 0; text-align:center; }
@@ -339,7 +358,6 @@
       .feat-grid { grid-template-columns:1fr 1fr; }
       .feat-grid .card { padding:20px; }
       .mvf-grid { grid-template-columns:1fr; }
-      .stats-grid { grid-template-columns:repeat(2,1fr); gap:32px; }
       .cta-form { flex-direction:column; }
       .cta-box { padding:48px 22px; }
       .scroll-hint { display:none; }
@@ -474,7 +492,12 @@
             <p>online · your CRM assistant</p>
           </div>
         </div>
-        <div class="tg-msgs" id="tgMsgs"></div>
+        <div class="tg-msgs" id="tgMsgs">
+          <div class="msg msg-bot" style="opacity:1;transform:none;animation:none">
+            👋 <b>Hi! I'm Unnati Bot.</b><br>Your Telegram-native CRM assistant.<br>Type <code>/start</code> to begin.
+            <div class="msg-t" id="tgInitTs"></div>
+          </div>
+        </div>
         <div class="tg-foot">
           <div class="tg-foot-input-wrap">
             <input id="tgIn" type="text" placeholder="Try /pipeline or /add deal …" style="width:100%;padding-right:28px" />
@@ -572,18 +595,6 @@
   </div>
 </section>
 
-<!-- STATS -->
-<section class="stats">
-  <div class="wrap">
-    <div class="stats-grid">
-      <div class="r"><div class="s-num" data-t="2400">0</div><div class="s-label">Founders on waitlist</div></div>
-      <div class="r d1"><div class="s-num" data-t="98">0</div><div class="s-label">Setup time (seconds)</div></div>
-      <div class="r d2"><div class="s-num" data-t="340">0</div><div class="s-label">Deals closed via bot</div></div>
-      <div class="r d3"><div class="s-num" data-t="4">0</div><div class="s-label">Extra deals closed / user / mo</div></div>
-    </div>
-  </div>
-</section>
-
 <!-- CTA -->
 <section class="cta-sec" id="cta">
   <div class="wrap">
@@ -602,7 +613,7 @@
 <footer>
   <div class="logo">Unnati <b style="color:var(--muted);font-weight:400">CRM</b></div>
   <p>Making Indian B2B founders unstoppable. 🇮🇳</p>
-  <p style="margin-top:8px;font-size:.75rem;opacity:.6">© 2025 Unnati CRM · Built with chai &amp; ambition.</p>
+  <p style="margin-top:8px;font-size:.75rem;opacity:.6">© 2026 Unnati CRM · Built with chai &amp; ambition.</p>
 </footer>
 
 <script>
@@ -706,32 +717,15 @@ document.querySelectorAll('.r').forEach(el=>{
 setTimeout(()=> document.querySelectorAll('.hero .r').forEach(el=>el.classList.add('on')), 200);
 
 /* ═══════════════════════════════════════════
-   COUNTER ANIMATION
-═══════════════════════════════════════════ */
-const cio=new IntersectionObserver(entries=>{
-  entries.forEach(e=>{
-    if(!e.isIntersecting) return;
-    const el=e.target, target=+el.dataset.t;
-    const start=performance.now();
-    (function tick(now){
-      const p=Math.min((now-start)/1800,1);
-      const v=Math.round((1-Math.pow(1-p,3))*target);
-      el.textContent=v>=1000 ? v.toLocaleString('en-IN') : v;
-      if(p<1) requestAnimationFrame(tick);
-    })(start);
-    cio.unobserve(el);
-  });
-},{threshold:.5});
-
-document.querySelectorAll('.s-num[data-t]').forEach(el=>cio.observe(el));
-
-/* ═══════════════════════════════════════════
    TELEGRAM DEMO
 ═══════════════════════════════════════════ */
 const msgs   = document.getElementById('tgMsgs');
 const inp    = document.getElementById('tgIn');
 const btn    = document.getElementById('tgBtn');
 const tgCaret= document.getElementById('tgCaret');
+
+/* Stamp the initial static message time */
+document.getElementById('tgInitTs').textContent = ts();
 
 /* Hide blinking caret while user types */
 inp.addEventListener('focus', () => tgCaret.style.display = 'none');
@@ -851,39 +845,6 @@ const SUPABASE_URL = 'https://bvgjwcjnhubhwzlxcenq.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z2p3Y2puaHViaHd6bHhjZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQ5ODMsImV4cCI6MjA4ODg5MDk4M30._5xKW2Bt2O2e2WVF7n5T-Pr8SPk3BTmCMHGKbo2gpGg';
 
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-const sbHeaders = {
-  'Content-Type': 'application/json',
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-};
-
-/* Fetch real waitlist count and update the counter */
-async function loadWaitlistCount() {
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist?select=*`, {
-      headers: { ...sbHeaders, 'Prefer': 'count=exact', 'Range': '0-0' },
-    });
-    const count = parseInt(res.headers.get('content-range')?.split('/')[1] || '0', 10);
-    if (count > 0) {
-      const el = document.querySelector('.s-num[data-t="2400"]');
-      if (el) {
-        el.dataset.t = count;
-        /* If counter already animated, update directly */
-        if (el.textContent !== '0') {
-          el.textContent = count >= 1000 ? count.toLocaleString('en-IN') : count;
-        }
-      }
-      /* Also update the CTA paragraph */
-      const ctaPara = document.querySelector('.cta-box > p');
-      if (ctaPara) {
-        ctaPara.innerHTML = `Join ${count >= 1000 ? count.toLocaleString('en-IN') : count}+ Indian founders already on the waitlist.<br>Be the first to close more deals from Telegram.`;
-      }
-    }
-  } catch(_) {}
-}
-loadWaitlistCount();
-
 
 /* ═══════════════════════════════════════════
    AUTH MODAL
