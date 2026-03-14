@@ -437,7 +437,7 @@ async function loadCrmData(botUserId, telegramChatId) {
 
   let query = sb.from('contacts')
     .select('name, company, stage, source, added_on, last_updated, interaction_count')
-    .order('added_on', { ascending: false })
+    .order('last_updated', { ascending: false })
     .limit(50);
 
   if (botUserId) {
@@ -613,7 +613,7 @@ function renderActivity(contacts) {
           ${c.company ? escHtml(c.company) + ' · ' : ''}${escHtml(c.stage || 'New')}${c.source ? ' · ' + escHtml(c.source) : ''}${c.interaction_count ? ' · 💬 ' + c.interaction_count : ''}
         </div>
       </div>
-      <div class="activity-time">${c.added_on ? timeAgo(c.added_on) : '—'}</div>
+      <div class="activity-time">${timeAgo(c.last_updated || c.added_on)}</div>
     `;
     list.appendChild(row);
   });
