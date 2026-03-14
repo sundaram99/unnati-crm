@@ -360,14 +360,13 @@ function markAllError() {
 }
 
 /* ── Main data loader ── */
-async function loadCrmData(userId) {
-  console.log('[Unnati] loadCrmData called — fetching contacts for user:', userId);
+async function loadCrmData() {
+  console.log('[Unnati] loadCrmData called — fetching all contacts');
 
   let res;
   try {
     res = await sb.from('contacts')
       .select('name, company, stage, source, added_on, last_updated, interaction_count')
-      .eq('user_id', userId)
       .order('added_on', { ascending: false })
       .limit(50);
   } catch (err) {
@@ -543,7 +542,7 @@ function setupDashboard(session) {
   document.getElementById('userEmail').textContent = name;
   document.getElementById('firstName').textContent = name;
 
-  loadCrmData(session.user.id).catch(err => {
+  loadCrmData().catch(err => {
     console.error('[Unnati] loadCrmData unhandled error:', err);
     markAllError();
   });
