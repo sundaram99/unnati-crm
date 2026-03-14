@@ -354,8 +354,8 @@ const HEAT_COLORS = { Hot: 'green', Warm: 'yellow', Cold: 'blue' };
 const HEAT_RANK   = { Hot: 3, Warm: 2, Cold: 1 };
 
 function deriveHeat(stage) {
-  if (['Proposal', 'Negotiation', 'Qualified', 'Demo'].includes(stage)) return 'Hot';
-  if (['Contacted', 'Follow-up', 'Interest', 'Intro'].includes(stage)) return 'Warm';
+  if (['Negotiating', 'Proposal Sent', 'Proposal', 'Negotiation', 'Qualified', 'Demo'].includes(stage)) return 'Hot';
+  if (['Lead', 'Evaluating', 'Contacted', 'Follow-up', 'Interest', 'Intro'].includes(stage)) return 'Warm';
   return 'Cold';
 }
 
@@ -615,7 +615,7 @@ function setupDashboard(session) {
   console.log('[Unnati] setupDashboard called, user:', session.user.email);
 
   const email = session.user.email;
-  const name  = displayName(email);
+  const name  = session.user.user_metadata?.full_name || displayName(email);
 
   document.getElementById('userEmail').textContent = name;
   document.getElementById('firstName').textContent = name;
@@ -659,7 +659,7 @@ async function initDashboard(authUserId) {
 
 function redirectToLogin() {
   console.log('[Unnati] No session — redirecting to login');
-  window.location.href = '/index.html';
+  window.location.href = '/unnati-crm/index.html';
 }
 
 /* 3-second timeout fallback */
@@ -702,7 +702,7 @@ sb.auth.getSession().then(({ data, error }) => {
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   console.log('[Unnati] Logging out');
   await sb.auth.signOut();
-  window.location.href = '/index.html';
+  window.location.href = '/unnati-crm/index.html';
 });
 </script>
 </body>

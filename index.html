@@ -491,6 +491,10 @@
       <button class="modal-tab active" data-tab="signin">Sign In</button>
       <button class="modal-tab" data-tab="signup">Sign Up</button>
     </div>
+    <div class="modal-field" id="nameField" style="display:none">
+      <label for="authName">Your name</label>
+      <input type="text" id="authName" placeholder="e.g. Sundar Raj" autocomplete="name" />
+    </div>
     <div class="modal-field">
       <label for="authEmail">Email</label>
       <input type="email" id="authEmail" placeholder="you@startup.com" autocomplete="email" />
@@ -949,6 +953,7 @@ tabs.forEach(tab => {
     tab.classList.add('active');
     authMode = tab.dataset.tab;
     authSubmit.textContent = authMode === 'signin' ? 'Sign In' : 'Create Account';
+    document.getElementById('nameField').style.display = authMode === 'signup' ? '' : 'none';
     clearMsg();
   });
 });
@@ -983,7 +988,11 @@ authSubmit.addEventListener('click', async () => {
       navLoginBtn.href = '/unnati-crm/dashboard.html';
       setTimeout(() => { window.location.href = '/unnati-crm/dashboard.html'; }, 800);
     } else {
-      const { data, error } = await sb.auth.signUp({ email, password });
+      const fullName = document.getElementById('authName').value.trim() || email.split('@')[0];
+      const { data, error } = await sb.auth.signUp({
+        email, password,
+        options: { data: { full_name: fullName } },
+      });
       if (error) throw error;
       if (data.session) {
         /* Email confirmation disabled — logged in immediately */
