@@ -323,6 +323,12 @@
 const HEAT_COLORS = { Hot: 'green', Warm: 'yellow', Cold: 'blue' };
 const HEAT_RANK   = { Hot: 3, Warm: 2, Cold: 1 };
 
+function deriveHeat(stage) {
+  if (['Proposal', 'Negotiation', 'Qualified', 'Demo'].includes(stage)) return 'Hot';
+  if (['Contacted', 'Follow-up', 'Interest', 'Intro'].includes(stage)) return 'Warm';
+  return 'Cold';
+}
+
 /* ── Helpers ── */
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
@@ -360,7 +366,7 @@ async function loadCrmData() {
   let res;
   try {
     res = await sb.from('contacts')
-      .select('name, company, stage, heat_score, created_at')
+      .select('name, company, stage, created_at')
       .order('created_at', { ascending: false })
       .limit(50);
   } catch (err) {
@@ -411,7 +417,7 @@ function renderRecentContacts(contacts) {
   empty.remove();
 
   contacts.forEach(c => {
-    const dot   = HEAT_COLORS[c.heat_score] || 'muted';
+    const dot   = HEAT_COLORS[deriveHeat(c.stage)] || 'muted';
     const stage = c.stage || 'New';
     const row   = document.createElement('div');
     row.className = 'deal-row';
@@ -419,7 +425,7 @@ function renderRecentContacts(contacts) {
       <span class="deal-dot ${dot}"></span>
       <span class="deal-name">${escHtml(c.name || 'Unnamed')}</span>
       <span class="deal-stage">${escHtml(stage)}</span>
-      <span style="font-size:.75rem;color:var(--muted)">${escHtml(c.heat_score || 'Cold')}</span>
+      <span style="font-size:.75rem;color:var(--muted)">${escHtml(deriveHeat(c.stage))}</span>
     `;
     container.appendChild(row);
   });
@@ -432,7 +438,7 @@ function renderTopLeads(contacts) {
   const empty = document.getElementById('leadsEmpty');
 
   const sorted = [...contacts]
-    .sort((a, b) => (HEAT_RANK[b.heat_score] || 0) - (HEAT_RANK[a.heat_score] || 0))
+    .sort((a, b) => (HEAT_RANK[deriveHeat(b.stage)] || 0) - (HEAT_RANK[deriveHeat(a.stage)] || 0))
     .slice(0, 3);
 
   if (sorted.length === 0) { empty.style.display = 'block'; return; }
@@ -440,14 +446,14 @@ function renderTopLeads(contacts) {
 
   const medals = ['🥇', '🥈', '🥉'];
   sorted.forEach((c, i) => {
-    const heat = (c.heat_score || 'Cold').toLowerCase();
+    const heat = deriveHeat(c.stage).toLowerCase();
     const card = document.createElement('div');
     card.className = 'lead-card';
     card.innerHTML = `
       <div class="lead-rank">${medals[i]} #${i + 1} Lead</div>
       <div class="lead-name">${escHtml(c.name || 'Unnamed')}</div>
       ${c.company ? `<div class="lead-company">${escHtml(c.company)}</div>` : ''}
-      <div class="lead-heat ${heat}">🔥 ${escHtml(c.heat_score || 'Cold')}</div>
+      <div class="lead-heat ${heat}">🔥 ${escHtml(deriveHeat(c.stage))}</div>
       <div class="lead-stage-tag">${escHtml(c.stage || 'New')}</div>
     `;
     grid.appendChild(card);
@@ -514,7 +520,7 @@ function renderActivity(contacts) {
       <div class="activity-main">
         <div class="activity-name">${escHtml(c.name || 'Unnamed')}</div>
         <div class="activity-meta">
-          ${c.company ? escHtml(c.company) + ' · ' : ''}${escHtml(c.stage || 'New')} · ${escHtml(c.heat_score || 'Cold')}
+          ${c.company ? escHtml(c.company) + ' · ' : ''}${escHtml(c.stage || 'New')}
         </div>
       </div>
       <div class="activity-time">${c.created_at ? timeAgo(c.created_at) : '—'}</div>
