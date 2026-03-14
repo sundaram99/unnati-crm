@@ -661,11 +661,16 @@ async function initDashboard(authUserId) {
     return;
   }
 
-  // Not linked — show banner + load all contacts as fallback
+  // Not linked — show link banner, no data until linked
   console.log('[Unnati] Not linked — showing link banner');
   const token = await createLinkToken(authUserId);
   if (token) showLinkBanner(token);
-  await loadCrmData(null, null);
+  document.getElementById('pipelineBadge').textContent = 'LINK BOT';
+  document.getElementById('dealsBadge').textContent    = 'LINK BOT';
+  document.getElementById('leadsBadge').textContent    = 'LINK BOT';
+  document.getElementById('statActive').textContent    = '—';
+  document.getElementById('statFollowups').textContent = '—';
+  document.getElementById('statWon').textContent       = '—';
 }
 
 function redirectToLogin() {
