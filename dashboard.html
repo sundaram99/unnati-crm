@@ -360,14 +360,15 @@ function markAllError() {
 }
 
 /* ── Main data loader ── */
-async function loadCrmData() {
-  console.log('[Unnati] loadCrmData called — fetching all contacts');
+async function loadCrmData(userId) {
+  console.log('[Unnati] loadCrmData called — fetching contacts for user:', userId);
 
   let res;
   try {
     res = await sb.from('contacts')
-      .select('name, company, stage, created_at')
-      .order('created_at', { ascending: false })
+      .select('name, company, stage, source, added_on, last_updated, interaction_count')
+      .eq('user_id', userId)
+      .order('added_on', { ascending: false })
       .limit(50);
   } catch (err) {
     console.error('[Unnati] fetch threw:', err);
@@ -390,7 +391,7 @@ async function loadCrmData() {
 
   const activeCount   = contacts.filter(c => !CLOSED.has(c.stage)).length;
   const followupCount = contacts.filter(c =>
-    !CLOSED.has(c.stage) && c.created_at && new Date(c.created_at).getTime() < sevenDaysAgo
+    !CLOSED.has(c.stage) && c.added_on && new Date(c.added_on).getTime() < sevenDaysAgo
   ).length;
 
   document.getElementById('statActive').textContent    = activeCount;
@@ -438,7 +439,7 @@ function renderTopLeads(contacts) {
   const empty = document.getElementById('leadsEmpty');
 
   const sorted = [...contacts]
-    .sort((a, b) => (HEAT_RANK[deriveHeat(b.stage)] || 0) - (HEAT_RANK[deriveHeat(a.stage)] || 0))
+    .sort((a, b) => (b.interaction_count || 0) - (a.interaction_count || 0))
     .slice(0, 3);
 
   if (sorted.length === 0) { empty.style.display = 'block'; return; }
@@ -446,14 +447,13 @@ function renderTopLeads(contacts) {
 
   const medals = ['🥇', '🥈', '🥉'];
   sorted.forEach((c, i) => {
-    const heat = deriveHeat(c.stage).toLowerCase();
     const card = document.createElement('div');
     card.className = 'lead-card';
     card.innerHTML = `
       <div class="lead-rank">${medals[i]} #${i + 1} Lead</div>
       <div class="lead-name">${escHtml(c.name || 'Unnamed')}</div>
       ${c.company ? `<div class="lead-company">${escHtml(c.company)}</div>` : ''}
-      <div class="lead-heat ${heat}">🔥 ${escHtml(deriveHeat(c.stage))}</div>
+      <div class="lead-heat">💬 ${c.interaction_count || 0} interactions</div>
       <div class="lead-stage-tag">${escHtml(c.stage || 'New')}</div>
     `;
     grid.appendChild(card);
@@ -520,10 +520,10 @@ function renderActivity(contacts) {
       <div class="activity-main">
         <div class="activity-name">${escHtml(c.name || 'Unnamed')}</div>
         <div class="activity-meta">
-          ${c.company ? escHtml(c.company) + ' · ' : ''}${escHtml(c.stage || 'New')}
+          ${c.company ? escHtml(c.company) + ' · ' : ''}${escHtml(c.stage || 'New')}${c.source ? ' · ' + escHtml(c.source) : ''}${c.interaction_count ? ' · 💬 ' + c.interaction_count : ''}
         </div>
       </div>
-      <div class="activity-time">${c.created_at ? timeAgo(c.created_at) : '—'}</div>
+      <div class="activity-time">${c.added_on ? timeAgo(c.added_on) : '—'}</div>
     `;
     list.appendChild(row);
   });
@@ -543,7 +543,7 @@ function setupDashboard(session) {
   document.getElementById('userEmail').textContent = name;
   document.getElementById('firstName').textContent = name;
 
-  loadCrmData().catch(err => {
+  loadCrmData(session.user.id).catch(err => {
     console.error('[Unnati] loadCrmData unhandled error:', err);
     markAllError();
   });
