@@ -353,9 +353,22 @@
 const HEAT_COLORS = { Hot: 'green', Warm: 'yellow', Cold: 'blue' };
 const HEAT_RANK   = { Hot: 3, Warm: 2, Cold: 1 };
 
-function deriveHeat(stage) {
-  if (['Negotiating', 'Proposal Sent', 'Proposal', 'Negotiation', 'Qualified', 'Demo'].includes(stage)) return 'Hot';
-  if (['Lead', 'Evaluating', 'Contacted', 'Follow-up', 'Interest', 'Intro'].includes(stage)) return 'Warm';
+/* Same formula as the bot's db.heat_score:
+   score = 100 - (days_since_update * 5) + (interaction_count * 3), capped 0-100
+   Hot >= 70, Warm >= 40, Cold < 40 */
+function heatScore(c) {
+  const lastStr = c.last_updated || c.added_on;
+  let days = 30;
+  if (lastStr) {
+    days = Math.floor((Date.now() - new Date(lastStr).getTime()) / 86400000);
+  }
+  const raw = 100 - (days * 5) + ((c.interaction_count || 0) * 3);
+  return Math.max(0, Math.min(100, raw));
+}
+function deriveHeat(c) {
+  const s = heatScore(c);
+  if (s >= 70) return 'Hot';
+  if (s >= 40) return 'Warm';
   return 'Cold';
 }
 
@@ -495,7 +508,7 @@ function renderRecentContacts(contacts) {
   empty.remove();
 
   contacts.forEach(c => {
-    const dot   = HEAT_COLORS[deriveHeat(c.stage)] || 'muted';
+    const dot   = HEAT_COLORS[deriveHeat(c)] || 'muted';
     const stage = c.stage || 'New';
     const row   = document.createElement('div');
     row.className = 'deal-row';
@@ -503,7 +516,7 @@ function renderRecentContacts(contacts) {
       <span class="deal-dot ${dot}"></span>
       <span class="deal-name">${escHtml(c.name || 'Unnamed')}</span>
       <span class="deal-stage">${escHtml(stage)}</span>
-      <span style="font-size:.75rem;color:var(--muted)">${escHtml(deriveHeat(c.stage))}</span>
+      <span style="font-size:.75rem;color:var(--muted)">${escHtml(deriveHeat(c))} (${heatScore(c)})</span>
     `;
     container.appendChild(row);
   });
