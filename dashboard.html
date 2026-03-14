@@ -6,6 +6,13 @@
   <title>Dashboard — Unnati CRM</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    /* ── Supabase client — created as early as possible ── */
+    const SUPABASE_URL = 'https://bvgjwcjnhubhwzlxcenq.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z2p3Y2puaHViaHd6bHhjZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQ5ODMsImV4cCI6MjA4ODg5MDk4M30._5xKW2Bt2O2e2WVF7n5T-Pr8SPk3BTmCMHGKbo2gpGg';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    console.log('[Unnati] Supabase client initialized');
+  </script>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -311,13 +318,12 @@
 </main>
 
 <script>
-const SUPABASE_URL = 'https://bvgjwcjnhubhwzlxcenq.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2Z2p3Y2puaHViaHd6bHhjZW5xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQ5ODMsImV4cCI6MjA4ODg5MDk4M30._5xKW2Bt2O2e2WVF7n5T-Pr8SPk3BTmCMHGKbo2gpGg';
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+/* sb is already created in <head> — no need to re-declare here */
 
 const HEAT_COLORS = { Hot: 'green', Warm: 'yellow', Cold: 'blue' };
 const HEAT_RANK   = { Hot: 3, Warm: 2, Cold: 1 };
 
+/* ── Helpers ── */
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -335,37 +341,64 @@ function timeAgo(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
 }
 
+/* Extract "Sundaram" from "sundaram.manipal18@gmail.com" */
+function displayName(email) {
+  const first = email.split('@')[0].split(/[._-]/)[0];
+  return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+}
+
+/* Mark all section badges as errored */
+function markAllError() {
+  ['pipelineBadge','dealsBadge','leadsBadge','chartBadge','activityBadge']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = 'ERROR'; });
+}
+
 /* ── Main data loader ── */
 async function loadCrmData(userId) {
+  console.log('[Unnati] loadCrmData called with userId:', userId);
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  /* Fetch all contacts for this user in parallel */
-  const [activeRes, followupRes, recentRes, allRes] = await Promise.all([
-    /* Active deal count */
-    sb.from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .not('stage', 'in', '("Won","Lost")'),
+  let activeRes, followupRes, recentRes, allRes;
 
-    /* Follow-ups due (not updated in 7 days, not closed) */
-    sb.from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .not('stage', 'in', '("Won","Lost")')
-      .lt('last_updated', sevenDaysAgo),
+  try {
+    [activeRes, followupRes, recentRes, allRes] = await Promise.all([
+      sb.from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .not('stage', 'in', '("Won","Lost")'),
 
-    /* Recent contacts (for pipeline table + recent activity) */
-    sb.from('contacts')
-      .select('name, company, stage, heat_score, last_updated')
-      .eq('user_id', userId)
-      .order('last_updated', { ascending: false })
-      .limit(10),
+      sb.from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .not('stage', 'in', '("Won","Lost")')
+        .lt('last_updated', sevenDaysAgo),
 
-    /* All contacts (for stage chart + top leads) */
-    sb.from('contacts')
-      .select('name, company, stage, heat_score, last_updated')
-      .eq('user_id', userId),
-  ]);
+      sb.from('contacts')
+        .select('name, company, stage, heat_score, last_updated')
+        .eq('user_id', userId)
+        .order('last_updated', { ascending: false })
+        .limit(10),
+
+      sb.from('contacts')
+        .select('name, company, stage, heat_score, last_updated')
+        .eq('user_id', userId),
+    ]);
+  } catch (err) {
+    console.error('[Unnati] Parallel fetch threw:', err);
+    markAllError();
+    return;
+  }
+
+  /* Log any per-query errors */
+  if (activeRes.error)   console.error('[Unnati] activeRes error:',   activeRes.error);
+  if (followupRes.error) console.error('[Unnati] followupRes error:', followupRes.error);
+  if (recentRes.error)   console.error('[Unnati] recentRes error:',   recentRes.error);
+  if (allRes.error)      console.error('[Unnati] allRes error:',      allRes.error);
+
+  console.log('[Unnati] Query results — active:', activeRes.count,
+    '| followup:', followupRes.count,
+    '| recent:', recentRes.data?.length,
+    '| all:', allRes.data?.length);
 
   /* ── Pipeline stats ── */
   document.getElementById('statActive').textContent    = activeRes.count   ?? '0';
@@ -376,33 +409,24 @@ async function loadCrmData(userId) {
   const allContacts    = allRes.data    ?? [];
   const recentContacts = recentRes.data ?? [];
 
-  /* ── Recent contacts table ── */
   renderRecentContacts(recentContacts.slice(0, 5));
-
-  /* ── Top Leads ── */
   renderTopLeads(allContacts);
-
-  /* ── Stage chart ── */
   renderStageChart(allContacts);
-
-  /* ── Recent Activity ── */
   renderActivity(recentContacts.slice(0, 5));
 }
 
 /* ─── Recent Contacts ─── */
 function renderRecentContacts(contacts) {
-  const badge     = document.getElementById('dealsBadge');
+  document.getElementById('dealsBadge').textContent = 'LIVE';
   const empty     = document.getElementById('dealsEmpty');
   const container = document.getElementById('dealsContainer');
-
-  badge.textContent = 'LIVE';
 
   if (contacts.length === 0) {
     empty.style.display = 'block';
     return;
   }
-
   empty.remove();
+
   contacts.forEach(c => {
     const dot   = HEAT_COLORS[c.heat_score] || 'muted';
     const stage = c.stage || 'New';
@@ -420,26 +444,21 @@ function renderRecentContacts(contacts) {
 
 /* ─── Top Leads ─── */
 function renderTopLeads(contacts) {
-  const badge = document.getElementById('leadsBadge');
+  document.getElementById('leadsBadge').textContent = 'LIVE';
   const grid  = document.getElementById('leadsGrid');
   const empty = document.getElementById('leadsEmpty');
 
-  badge.textContent = 'LIVE';
+  const sorted = [...contacts]
+    .sort((a, b) => (HEAT_RANK[b.heat_score] || 0) - (HEAT_RANK[a.heat_score] || 0))
+    .slice(0, 3);
 
-  const sorted = [...contacts].sort((a, b) =>
-    (HEAT_RANK[b.heat_score] || 0) - (HEAT_RANK[a.heat_score] || 0)
-  ).slice(0, 3);
-
-  if (sorted.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-
+  if (sorted.length === 0) { empty.style.display = 'block'; return; }
   empty.remove();
+
   const medals = ['🥇', '🥈', '🥉'];
   sorted.forEach((c, i) => {
-    const heat  = (c.heat_score || 'Cold').toLowerCase();
-    const card  = document.createElement('div');
+    const heat = (c.heat_score || 'Cold').toLowerCase();
+    const card = document.createElement('div');
     card.className = 'lead-card';
     card.innerHTML = `
       <div class="lead-rank">${medals[i]} #${i + 1} Lead</div>
@@ -455,22 +474,15 @@ function renderTopLeads(contacts) {
 /* ─── Stage Chart ─── */
 function renderStageChart(contacts) {
   const badge = document.getElementById('chartBadge');
-  badge.textContent = 'LIVE';
-
-  /* Count per stage */
   const counts = {};
   contacts.forEach(c => {
     const s = c.stage || 'Unknown';
     counts[s] = (counts[s] || 0) + 1;
   });
-
   const stages = Object.keys(counts);
-  const values = stages.map(s => counts[s]);
 
-  if (stages.length === 0) {
-    document.getElementById('chartBadge').textContent = 'NO DATA';
-    return;
-  }
+  if (stages.length === 0) { badge.textContent = 'NO DATA'; return; }
+  badge.textContent = 'LIVE';
 
   const ctx = document.getElementById('stageChart').getContext('2d');
   new Chart(ctx, {
@@ -479,7 +491,7 @@ function renderStageChart(contacts) {
       labels: stages,
       datasets: [{
         label: 'Contacts',
-        data: values,
+        data: stages.map(s => counts[s]),
         backgroundColor: 'rgba(0,212,170,0.25)',
         borderColor: 'rgba(0,212,170,0.8)',
         borderWidth: 1,
@@ -492,21 +504,11 @@ function renderStageChart(contacts) {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: {
-          callbacks: { label: ctx => ` ${ctx.parsed.x} contact${ctx.parsed.x !== 1 ? 's' : ''}` },
-        },
+        tooltip: { callbacks: { label: c => ` ${c.parsed.x} contact${c.parsed.x !== 1 ? 's' : ''}` } },
       },
       scales: {
-        x: {
-          ticks: { color: '#7a8599', stepSize: 1 },
-          grid:  { color: 'rgba(255,255,255,.05)' },
-          border:{ color: 'transparent' },
-        },
-        y: {
-          ticks: { color: '#e8edf5', font: { weight: '600' } },
-          grid:  { display: false },
-          border:{ color: 'transparent' },
-        },
+        x: { ticks: { color: '#7a8599', stepSize: 1 }, grid: { color: 'rgba(255,255,255,.05)' }, border: { color: 'transparent' } },
+        y: { ticks: { color: '#e8edf5', font: { weight: '600' } }, grid: { display: false }, border: { color: 'transparent' } },
       },
     },
   });
@@ -514,18 +516,13 @@ function renderStageChart(contacts) {
 
 /* ─── Recent Activity ─── */
 function renderActivity(contacts) {
-  const badge = document.getElementById('activityBadge');
+  document.getElementById('activityBadge').textContent = 'LIVE';
   const list  = document.getElementById('activityList');
   const empty = document.getElementById('activityEmpty');
 
-  badge.textContent = 'LIVE';
-
-  if (contacts.length === 0) {
-    empty.style.display = 'block';
-    return;
-  }
-
+  if (contacts.length === 0) { empty.style.display = 'block'; return; }
   empty.remove();
+
   contacts.forEach(c => {
     const row = document.createElement('div');
     row.className = 'activity-row';
@@ -543,37 +540,73 @@ function renderActivity(contacts) {
   });
 }
 
-/* ── Init ── */
-async function init() {
-  const { data: { session } } = await sb.auth.getSession();
+/* ── Auth + Init ── */
+let initRan = false;
 
-  if (!session) {
-    window.location.href = '/index.html';
-    return;
-  }
+function setupDashboard(session) {
+  if (initRan) return;
+  initRan = true;
+  console.log('[Unnati] setupDashboard called, user:', session.user.email);
 
   const email = session.user.email;
-  document.getElementById('userEmail').textContent = email;
-  const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const name  = displayName(email);
+
+  document.getElementById('userEmail').textContent = name;
   document.getElementById('firstName').textContent = name;
 
   loadCrmData(session.user.id).catch(err => {
-    console.error('CRM fetch error:', err);
-    ['pipelineBadge','dealsBadge','leadsBadge','chartBadge','activityBadge']
-      .forEach(id => document.getElementById(id).textContent = 'ERROR');
+    console.error('[Unnati] loadCrmData unhandled error:', err);
+    markAllError();
   });
 }
 
+function redirectToLogin() {
+  console.log('[Unnati] No session — redirecting to login');
+  window.location.href = '/index.html';
+}
+
+/* 3-second timeout fallback */
+const authTimeout = setTimeout(() => {
+  if (!initRan) {
+    console.error('[Unnati] Auth check timed out after 3s — redirecting');
+    redirectToLogin();
+  }
+}, 3000);
+
+/* Primary: onAuthStateChange fires reliably on load with INITIAL_SESSION / SIGNED_IN */
+sb.auth.onAuthStateChange((event, session) => {
+  console.log('[Unnati] onAuthStateChange event:', event, '| session:', !!session);
+  clearTimeout(authTimeout);
+
+  if (session) {
+    setupDashboard(session);
+  } else if (event === 'SIGNED_OUT') {
+    redirectToLogin();
+  }
+  /* INITIAL_SESSION with null session means not logged in */
+  else if (event === 'INITIAL_SESSION' && !session) {
+    redirectToLogin();
+  }
+});
+
+/* Fallback: also try getSession() in case onAuthStateChange is slow */
+sb.auth.getSession().then(({ data, error }) => {
+  console.log('[Unnati] getSession result — session:', !!data?.session, '| error:', error);
+  if (error) console.error('[Unnati] getSession error:', error);
+  if (data?.session && !initRan) {
+    clearTimeout(authTimeout);
+    setupDashboard(data.session);
+  }
+}).catch(err => {
+  console.error('[Unnati] getSession threw:', err);
+});
+
+/* Logout */
 document.getElementById('logoutBtn').addEventListener('click', async () => {
+  console.log('[Unnati] Logging out');
   await sb.auth.signOut();
   window.location.href = '/index.html';
 });
-
-sb.auth.onAuthStateChange(event => {
-  if (event === 'SIGNED_OUT') window.location.href = '/index.html';
-});
-
-init();
 </script>
 </body>
 </html>
