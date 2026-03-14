@@ -300,8 +300,8 @@
       <div class="s-label">Active Deals</div>
     </div>
     <div class="stat-card">
-      <div class="s-num" id="statTotal">—</div>
-      <div class="s-label">Total Contacts</div>
+      <div class="s-num" id="statWon">—</div>
+      <div class="s-label">Deals Won</div>
     </div>
     <div class="stat-card">
       <div class="s-num" id="statFollowups">—</div>
@@ -479,20 +479,22 @@ async function loadCrmData(botUserId, telegramChatId) {
   const CLOSED = new Set(['Won', 'Lost']);
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-  const activeCount   = contacts.filter(c => !CLOSED.has(c.stage)).length;
-  const followupCount = contacts.filter(c =>
-    !CLOSED.has(c.stage) && c.added_on && new Date(c.added_on).getTime() < sevenDaysAgo
+  const active        = contacts.filter(c => !CLOSED.has(c.stage));
+  const activeCount   = active.length;
+  const wonCount      = contacts.filter(c => c.stage === 'Won').length;
+  const followupCount = active.filter(c =>
+    c.last_updated && new Date(c.last_updated).getTime() < sevenDaysAgo
   ).length;
 
   document.getElementById('statActive').textContent    = activeCount;
   document.getElementById('statFollowups').textContent = followupCount;
-  document.getElementById('statTotal').textContent     = contacts.length;
+  document.getElementById('statWon').textContent       = wonCount;
   document.getElementById('pipelineBadge').textContent = 'LIVE';
 
-  renderRecentContacts(contacts.slice(0, 5));
-  renderTopLeads(contacts);
-  renderStageChart(contacts);
-  renderActivity(contacts.slice(0, 5));
+  renderRecentContacts(active.slice(0, 5));
+  renderTopLeads(active);
+  renderStageChart(active);
+  renderActivity(active.slice(0, 5));
 }
 
 /* ─── Recent Contacts ─── */
