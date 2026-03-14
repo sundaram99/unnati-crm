@@ -220,6 +220,21 @@
     .activity-meta { font-size: .78rem; color: var(--muted); margin-top: 2px; }
     .activity-time { font-size: .76rem; color: var(--muted); white-space: nowrap; }
 
+    /* ── Telegram Link Banner ── */
+    .link-banner {
+      display: none;
+      background: linear-gradient(135deg, rgba(0,212,170,.12), rgba(0,212,170,.05));
+      border: 1px solid rgba(0,212,170,.3);
+      border-radius: 14px; padding: 18px 22px;
+      margin-bottom: 28px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .link-banner.hidden { display: none !important; }
+    .link-banner-text { flex: 1; min-width: 200px; }
+    .link-banner-text strong { color: var(--teal); font-size: .95rem; }
+    .link-banner-text p { font-size: .82rem; color: var(--muted); margin-top: 4px; }
+    .link-banner-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
     @media(max-width: 700px) {
       nav { padding: 14px 18px; }
       .user-email { display: none; }
@@ -250,6 +265,21 @@
     <div class="welcome-label">Your Dashboard</div>
     <h1>Good to have you back, <span id="firstName">Founder</span> 👋</h1>
     <p>Here's the state of your pipeline. Your deals are managed via the Unnati Bot on Telegram.</p>
+  </div>
+
+  <!-- Telegram link banner (shown when not linked) -->
+  <div class="link-banner hidden" id="linkBanner">
+    <div class="link-banner-text">
+      <strong>🔗 Link your Telegram account</strong>
+      <p>Tap the button to sync your bot pipeline with this dashboard. Takes one second.</p>
+    </div>
+    <div class="link-banner-actions">
+      <a id="linkBotBtn" href="#" target="_blank" class="btn btn-tg">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.17 13.667l-2.95-.924c-.64-.203-.658-.64.136-.954l11.566-4.458c.537-.194 1.006.131.972.89z"/></svg>
+        Link Telegram Bot
+      </a>
+      <button class="btn btn-logout" onclick="location.reload()" style="font-size:.8rem;padding:8px 14px">Refresh after linking</button>
+    </div>
   </div>
 
   <!-- Bot CTA -->
@@ -359,16 +389,64 @@ function markAllError() {
     .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = 'ERROR'; });
 }
 
+/* ── Bot identity resolution ── */
+async function checkBotLink(authUserId) {
+  const { data, error } = await sb.from('users')
+    .select('id, telegram_chat_id')
+    .eq('supabase_auth_id', authUserId)
+    .limit(1);
+  if (error) { console.warn('[Unnati] checkBotLink error:', error); return null; }
+  return data?.[0] ?? null;
+}
+
+async function createLinkToken(authUserId) {
+  const token = Math.random().toString(36).slice(2, 10) +
+                Math.random().toString(36).slice(2, 6); // ~12 chars
+  const { error } = await sb.from('bot_link_tokens').insert({
+    token,
+    supabase_auth_id: authUserId,
+  });
+  if (error) { console.error('[Unnati] createLinkToken error:', error); return null; }
+  return token;
+}
+
+function showLinkBanner(token) {
+  const banner = document.getElementById('linkBanner');
+  const btn    = document.getElementById('linkBotBtn');
+  if (!banner || !btn) return;
+  btn.href = `https://t.me/UnnatiCRMBot?start=link_${token}`;
+  banner.classList.remove('hidden');
+}
+
 /* ── Main data loader ── */
-async function loadCrmData() {
-  console.log('[Unnati] loadCrmData called — fetching all contacts');
+async function loadCrmData(botUserId, telegramChatId) {
+  console.log('[Unnati] loadCrmData called', botUserId ? `for user ${botUserId}` : '(unlinked — all contacts)');
+
+  let query = sb.from('contacts')
+    .select('name, company, stage, source, added_on, last_updated, interaction_count')
+    .order('added_on', { ascending: false })
+    .limit(50);
+
+  if (botUserId) {
+    // Check if user is in a team — if yes, show team contacts
+    const { data: membership } = await sb.from('team_members')
+      .select('team_id')
+      .eq('user_id', telegramChatId)
+      .limit(1);
+    const teamId = membership?.[0]?.team_id ?? null;
+
+    if (teamId) {
+      console.log('[Unnati] filtering by team_id:', teamId);
+      query = query.eq('team_id', teamId);
+    } else {
+      console.log('[Unnati] filtering by user_id:', botUserId);
+      query = query.eq('user_id', botUserId);
+    }
+  }
 
   let res;
   try {
-    res = await sb.from('contacts')
-      .select('name, company, stage, source, added_on, last_updated, interaction_count')
-      .order('added_on', { ascending: false })
-      .limit(50);
+    res = await query;
   } catch (err) {
     console.error('[Unnati] fetch threw:', err);
     markAllError();
@@ -542,10 +620,41 @@ function setupDashboard(session) {
   document.getElementById('userEmail').textContent = name;
   document.getElementById('firstName').textContent = name;
 
-  loadCrmData().catch(err => {
-    console.error('[Unnati] loadCrmData unhandled error:', err);
+  initDashboard(session.user.id).catch(err => {
+    console.error('[Unnati] initDashboard error:', err);
     markAllError();
   });
+}
+
+async function initDashboard(authUserId) {
+  // Try cached identity first (avoids extra DB call on each load)
+  const cacheKey = `unnati_identity_${authUserId}`;
+  try {
+    const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null');
+    if (cached?.userId) {
+      console.log('[Unnati] Using cached bot identity:', cached.userId);
+      await loadCrmData(cached.userId, cached.telegramChatId);
+      return;
+    }
+  } catch (e) { /* ignore parse errors */ }
+
+  // Check if already linked in DB
+  const botUser = await checkBotLink(authUserId);
+  if (botUser) {
+    console.log('[Unnati] Bot linked — userId:', botUser.id);
+    localStorage.setItem(cacheKey, JSON.stringify({
+      userId: botUser.id,
+      telegramChatId: botUser.telegram_chat_id,
+    }));
+    await loadCrmData(botUser.id, botUser.telegram_chat_id);
+    return;
+  }
+
+  // Not linked — show banner + load all contacts as fallback
+  console.log('[Unnati] Not linked — showing link banner');
+  const token = await createLinkToken(authUserId);
+  if (token) showLinkBanner(token);
+  await loadCrmData(null, null);
 }
 
 function redirectToLogin() {
