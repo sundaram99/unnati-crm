@@ -354,65 +354,48 @@ function markAllError() {
 }
 
 /* ── Main data loader ── */
-async function loadCrmData(userId) {
-  console.log('[Unnati] loadCrmData called with userId:', userId);
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+async function loadCrmData() {
+  console.log('[Unnati] loadCrmData called — fetching all contacts');
 
-  let activeRes, followupRes, recentRes, allRes;
-
+  let res;
   try {
-    [activeRes, followupRes, recentRes, allRes] = await Promise.all([
-      sb.from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .not('stage', 'in', '("Won","Lost")'),
-
-      sb.from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .not('stage', 'in', '("Won","Lost")')
-        .lt('last_updated', sevenDaysAgo),
-
-      sb.from('contacts')
-        .select('name, company, stage, heat_score, last_updated')
-        .eq('user_id', userId)
-        .order('last_updated', { ascending: false })
-        .limit(10),
-
-      sb.from('contacts')
-        .select('name, company, stage, heat_score, last_updated')
-        .eq('user_id', userId),
-    ]);
+    res = await sb.from('contacts')
+      .select('name, company, stage, heat_score, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
   } catch (err) {
-    console.error('[Unnati] Parallel fetch threw:', err);
+    console.error('[Unnati] fetch threw:', err);
     markAllError();
     return;
   }
 
-  /* Log any per-query errors */
-  if (activeRes.error)   console.error('[Unnati] activeRes error:',   activeRes.error);
-  if (followupRes.error) console.error('[Unnati] followupRes error:', followupRes.error);
-  if (recentRes.error)   console.error('[Unnati] recentRes error:',   recentRes.error);
-  if (allRes.error)      console.error('[Unnati] allRes error:',      allRes.error);
+  if (res.error) {
+    console.error('[Unnati] contacts query error:', res.error);
+    markAllError();
+    return;
+  }
 
-  console.log('[Unnati] Query results — active:', activeRes.count,
-    '| followup:', followupRes.count,
-    '| recent:', recentRes.data?.length,
-    '| all:', allRes.data?.length);
+  const contacts = res.data ?? [];
+  console.log('[Unnati] fetched', contacts.length, 'contacts');
 
-  /* ── Pipeline stats ── */
-  document.getElementById('statActive').textContent    = activeRes.count   ?? '0';
-  document.getElementById('statFollowups').textContent = followupRes.count ?? '0';
-  document.getElementById('statTotal').textContent     = allRes.data?.length ?? '0';
+  /* ── Derive stats from results ── */
+  const CLOSED = new Set(['Won', 'Lost']);
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+  const activeCount   = contacts.filter(c => !CLOSED.has(c.stage)).length;
+  const followupCount = contacts.filter(c =>
+    !CLOSED.has(c.stage) && c.created_at && new Date(c.created_at).getTime() < sevenDaysAgo
+  ).length;
+
+  document.getElementById('statActive').textContent    = activeCount;
+  document.getElementById('statFollowups').textContent = followupCount;
+  document.getElementById('statTotal').textContent     = contacts.length;
   document.getElementById('pipelineBadge').textContent = 'LIVE';
 
-  const allContacts    = allRes.data    ?? [];
-  const recentContacts = recentRes.data ?? [];
-
-  renderRecentContacts(recentContacts.slice(0, 5));
-  renderTopLeads(allContacts);
-  renderStageChart(allContacts);
-  renderActivity(recentContacts.slice(0, 5));
+  renderRecentContacts(contacts.slice(0, 5));
+  renderTopLeads(contacts);
+  renderStageChart(contacts);
+  renderActivity(contacts.slice(0, 5));
 }
 
 /* ─── Recent Contacts ─── */
@@ -534,7 +517,7 @@ function renderActivity(contacts) {
           ${c.company ? escHtml(c.company) + ' · ' : ''}${escHtml(c.stage || 'New')} · ${escHtml(c.heat_score || 'Cold')}
         </div>
       </div>
-      <div class="activity-time">${c.last_updated ? timeAgo(c.last_updated) : '—'}</div>
+      <div class="activity-time">${c.created_at ? timeAgo(c.created_at) : '—'}</div>
     `;
     list.appendChild(row);
   });
@@ -554,7 +537,7 @@ function setupDashboard(session) {
   document.getElementById('userEmail').textContent = name;
   document.getElementById('firstName').textContent = name;
 
-  loadCrmData(session.user.id).catch(err => {
+  loadCrmData().catch(err => {
     console.error('[Unnati] loadCrmData unhandled error:', err);
     markAllError();
   });
