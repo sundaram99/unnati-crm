@@ -347,10 +347,42 @@
       50%{transform:translateX(-50%) translateY(8px)}
     }
 
+    /* ── Hamburger ── */
+    .hamburger {
+      display:none; flex-direction:column; justify-content:center; gap:5px;
+      background:none; border:none; cursor:pointer; padding:6px; z-index:201;
+    }
+    .hamburger span {
+      display:block; width:22px; height:2px;
+      background:var(--text); border-radius:2px; transition:all .25s;
+    }
+    .hamburger.open span:nth-child(1) { transform:translateY(7px) rotate(45deg); }
+    .hamburger.open span:nth-child(2) { opacity:0; }
+    .hamburger.open span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
+
+    .nav-actions { display:flex; align-items:center; gap:12px; }
+
     /* ── Mobile ── */
     @media(max-width:800px){
       nav { padding:14px 20px; }
-      nav ul { display:none; }
+      .hamburger { display:flex; }
+      nav ul {
+        display:none;
+        position:absolute; top:100%; left:0; right:0;
+        flex-direction:column; gap:0;
+        background:rgba(8,12,20,.97);
+        border-bottom:1px solid rgba(255,255,255,.07);
+        padding:8px 0 16px;
+      }
+      nav ul.open { display:flex; }
+      nav ul li { width:100%; }
+      nav ul a {
+        display:block; padding:12px 24px;
+        font-size:.95rem; border-bottom:1px solid rgba(255,255,255,.04);
+      }
+      nav ul li:last-child a { border-bottom:none; }
+      .nav-actions { gap:8px; }
+      .nav-login { font-size:.8rem; padding:7px 13px; }
       .hero-grid { grid-template-columns:1fr; gap:48px; }
       .tg-wrap { max-width:100%; }
       .steps { grid-template-columns:1fr; gap:32px; }
@@ -361,6 +393,10 @@
       .cta-form { flex-direction:column; }
       .cta-box { padding:48px 22px; }
       .scroll-hint { display:none; }
+    }
+
+    @media(max-width:480px){
+      .feat-grid { grid-template-columns:1fr; }
     }
 
     /* ── Auth Modal ── */
@@ -428,16 +464,21 @@
 <!-- NAV -->
 <nav>
   <div class="logo">Unnati <b>CRM</b></div>
-  <ul>
+  <ul id="navLinks">
     <li><a href="#hiw">How it works</a></li>
     <li><a href="#feat">Features</a></li>
     <li><a href="#india">Why Unnati</a></li>
     <li><a href="https://t.me/UnnatiCRMBot" target="_blank" class="nav-cta">Open in Telegram ✈</a></li>
-    <li><a href="#" id="navLoginBtn" class="nav-login">Login / Sign Up</a></li>
-    <li id="navLogoutItem" style="display:none">
-      <button id="navLogoutBtn" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.88rem;font-weight:600;padding:0;transition:color .2s">Logout</button>
-    </li>
   </ul>
+  <div class="nav-actions">
+    <a href="#" id="navLoginBtn" class="nav-login">Login / Sign Up</a>
+    <div id="navLogoutItem" style="display:none">
+      <button id="navLogoutBtn" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:.88rem;font-weight:600;padding:0;transition:color .2s">Logout</button>
+    </div>
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
 </nav>
 
 <!-- AUTH MODAL -->
@@ -874,6 +915,21 @@ document.getElementById('navLogoutBtn').addEventListener('click', async () => {
   navLoginBtn.textContent = 'Login / Sign Up';
   navLoginBtn.href = '#';
   document.getElementById('navLogoutItem').style.display = 'none';
+});
+
+/* ── Hamburger toggle ── */
+const hamburger = document.getElementById('hamburger');
+const navLinks  = document.getElementById('navLinks');
+hamburger.addEventListener('click', () => {
+  hamburger.classList.toggle('open');
+  navLinks.classList.toggle('open');
+});
+/* Close menu when a nav link is tapped */
+navLinks.querySelectorAll('a').forEach(a => {
+  a.addEventListener('click', () => {
+    hamburger.classList.remove('open');
+    navLinks.classList.remove('open');
+  });
 });
 
 function openModal() { authModal.classList.add('open'); authEmail.focus(); }
